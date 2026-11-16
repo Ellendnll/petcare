@@ -8,4 +8,6 @@ import java.util.List;
 public interface PetRepository extends JpaRepository<Pet, Long> {
     // Método útil para buscar os pets de um tutor específico
     List<Pet> findByUsuarioId(Long usuarioId);
+
+    List<Pet> findByUsuarioIdAndNomeContainingIgnoreCase(Long usuarioId, String nome);
 }
