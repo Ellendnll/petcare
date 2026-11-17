@@ -11,13 +11,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
-import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -27,122 +24,68 @@ import static org.mockito.Mockito.when;
 class VacinaServiceTest {
 
     @Mock
-    private PetRepository petRepository;
-
+    private VacinaRepository vacinaRepository;
     @Mock
-    private VacinacaoRepository vacinacaoRepository;
-
+    private PetRepository petRepository;
     @InjectMocks
     private VacinaService service;
 
-    @Test
-    void catalogo_defineVacinasPorEspecie() {
-        assertEquals(List.of("v10", "antirrabica", "giardia", "tosse_dos_canis", "leishmaniose"), codigos(EspecieVacina.CACHORRO));
-        assertEquals(List.of("v4", "antirrabica", "felv", "giardia"), codigos(EspecieVacina.GATO));
-        assertEquals(List.of("poliomavirus", "pacheco", "variola_aviaria"), codigos(EspecieVacina.LORO));
-        assertEquals(codigos(EspecieVacina.LORO), codigos(EspecieVacina.CALOPSITA));
-        assertTrue(codigos(EspecieVacina.HAMSTER).isEmpty());
-        assertEquals(EspecieVacina.LORO, EspecieVacina.da("Papagaio"));
-        assertEquals(EspecieVacina.CACHORRO, EspecieVacina.da("Cão"));
+    private Pet pet() {
+        Pet pet = new Pet();
+        pet.setId(1L);
+        pet.setNome("Rex");
+        return pet;
     }
 
     @Test
-    void buscar_comUsuarioENome_retornaPetsDoTutor() {
-        Pet rex = pet("Rex", "cachorro", 7L);
-        when(petRepository.findByUsuarioIdAndNomeContainingIgnoreCase(7L, "rex")).thenReturn(List.of(rex));
+    void criaVacinaComDadosValidos() {
+        when(petRepository.findById(1L)).thenReturn(Optional.of(pet()));
+        when(vacinaRepository.save(any(Vacina.class))).thenAnswer(i -> i.getArgument(0));
 
-        List<PetVacinaResumoDTO> pets = service.buscar(7L, " rex ");
+        VacinaRequestDTO dto = new VacinaRequestDTO(
+                "  V10 ", LocalDate.of(2026, 1, 10), LocalDate.of(2027, 1, 10), "Sem reação", 1L);
 
-        assertEquals(1, pets.size());
-        assertEquals("Rex", pets.get(0).nome());
-        assertEquals(7L, pets.get(0).usuarioId());
+        VacinaResponseDTO resposta = service.criar(dto);
+
+        assertThat(resposta.nome()).isEqualTo("V10");
+        assertThat(resposta.petNome()).isEqualTo("Rex");
+        assertThat(resposta.proximaDose()).isEqualTo(LocalDate.of(2027, 1, 10));
     }
 
     @Test
-    void buscar_semNome_lancaRegraNegocio() {
-        assertThrows(RegraNegocioException.class, () -> service.buscar(7L, "  "));
-        verify(petRepository, never()).findByUsuarioIdAndNomeContainingIgnoreCase(any(), any());
+    void rejeitaProximaDoseAnteriorAAplicacao() {
+        VacinaRequestDTO dto = new VacinaRequestDTO(
+                "V10", LocalDate.of(2026, 5, 10), LocalDate.of(2026, 5, 1), null, 1L);
+
+        assertThatThrownBy(() -> service.criar(dto))
+                .isInstanceOf(RegraNegocioException.class)
+                .hasMessageContaining("próxima dose");
+        verify(vacinaRepository, never()).save(any());
     }
 
     @Test
-    void detalhar_cachorro_trazVacinasDesmarcadas() {
-        when(petRepository.findById(1L)).thenReturn(Optional.of(pet("Rex", "cachorro", 7L)));
-        when(vacinacaoRepository.findByPetId(1L)).thenReturn(List.of());
-
-        PetVacinaDetalheDTO detalhe = service.detalhar(1L);
-
-        assertEquals("Rex", detalhe.nome());
-        assertEquals(5, detalhe.vacinas().size());
-        assertEquals("V10 (múltipla canina)", detalhe.vacinas().get(0).nome());
-        assertTrue(detalhe.vacinas().stream().noneMatch(VacinaStatusDTO::aplicada));
-    }
-
-    @Test
-    void detalhar_hamster_naoTemVacinaDeRotina() {
-        when(petRepository.findById(2L)).thenReturn(Optional.of(pet("Bolota", "hamster", 7L)));
-        when(vacinacaoRepository.findByPetId(2L)).thenReturn(List.of());
-
-        PetVacinaDetalheDTO detalhe = service.detalhar(2L);
-
-        assertTrue(detalhe.vacinas().isEmpty());
-        assertEquals("Hamsters não possuem vacinas de rotina obrigatórias.", detalhe.observacao());
-    }
-
-    @Test
-    void salvar_marcaSomenteVacinasDaEspecieEDevolveOPet() {
-        Pet pet = pet("Luna", "gato", 3L);
-        pet.setRaca("Siamês");
-        pet.setNascimento(LocalDate.of(2022, 4, 1));
-        when(petRepository.findById(4L)).thenReturn(Optional.of(pet));
-        when(vacinacaoRepository.findByPetId(4L)).thenReturn(List.of());
-        when(vacinacaoRepository.save(any(Vacinacao.class))).thenAnswer(invocacao -> invocacao.getArgument(0));
-
-        PetVacinaDetalheDTO salvo = service.salvar(4L, new SalvarVacinacaoRequest(List.of("antirrabica", "felv")));
-
-        assertEquals("Luna", salvo.nome());
-        assertEquals("Siamês", salvo.raca());
-        assertEquals(LocalDate.of(2022, 4, 1), salvo.nascimento());
-        assertEquals(3L, salvo.usuarioId());
-        assertTrue(aplicada(salvo, "antirrabica"));
-        assertTrue(aplicada(salvo, "felv"));
-        assertFalse(aplicada(salvo, "v4"));
-        assertFalse(aplicada(salvo, "giardia"));
-    }
-
-    @Test
-    void salvar_comVacinaDeOutraEspecie_lancaRegraNegocio() {
-        when(petRepository.findById(1L)).thenReturn(Optional.of(pet("Rex", "cachorro", 7L)));
-
-        assertThrows(RegraNegocioException.class,
-                () -> service.salvar(1L, new SalvarVacinacaoRequest(List.of("felv"))));
-        verify(vacinacaoRepository, never()).save(any());
-    }
-
-    @Test
-    void detalhar_comPetInexistente_lancaNaoEncontrado() {
+    void rejeitaVacinaParaAnimalInexistente() {
         when(petRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThrows(RecursoNaoEncontradoException.class, () -> service.detalhar(99L));
+        VacinaRequestDTO dto = new VacinaRequestDTO("V10", LocalDate.of(2026, 1, 10), null, null, 99L);
+
+        assertThatThrownBy(() -> service.criar(dto))
+                .isInstanceOf(RecursoNaoEncontradoException.class);
     }
 
-    private List<String> codigos(EspecieVacina especie) {
-        return VacinaCatalogo.porEspecie(especie).stream().map(VacinaCatalogo.Tipo::codigo).toList();
+    @Test
+    void excluirVacinaInexistenteLancaErro() {
+        when(vacinaRepository.findById(5L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.excluir(5L))
+                .isInstanceOf(RecursoNaoEncontradoException.class);
     }
 
-    private boolean aplicada(PetVacinaDetalheDTO detalhe, String codigo) {
-        return detalhe.vacinas().stream()
-                .filter(vacina -> vacina.codigo().equals(codigo))
-                .findFirst()
-                .orElseThrow()
-                .aplicada();
-    }
+    @Test
+    void listaSemFiltroUsaTodasAsVacinas() {
+        service.listar(null);
 
-    private Pet pet(String nome, String especie, Long usuarioId) {
-        Pet pet = new Pet();
-        pet.setId(nome.equals("Bolota") ? 2L : nome.equals("Luna") ? 4L : 1L);
-        pet.setNome(nome);
-        pet.setEspecie(especie);
-        pet.setUsuarioId(usuarioId);
-        return pet;
+        verify(vacinaRepository).findAllByOrderByDataAplicacaoDesc();
+        verify(vacinaRepository, never()).findByPetIdOrderByDataAplicacaoDesc(any());
     }
 }

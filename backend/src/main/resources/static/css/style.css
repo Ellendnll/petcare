@@ -1,11 +1,8 @@
 :root{
-  --fundo:#f3f7f6; --card:#fff; --texto:#1c2b2a; --suave:#60767400; --suave:#5f7573;
-  --linha:#dce7e5; --verde:#1f6f6b; --verde-esc:#17544f; --verde-claro:#e0f0ee;
-  --ambar:#f0b04a; --erro:#b4381f; --raio:14px;
+  --fundo:#f6f0e4; --card:#fffdf8; --texto:#3a2f26; --suave:#7a6b5c;
+  --linha:#e6dccb; --verde:#7b5b3e; --verde-esc:#5e4329; --verde-claro:#f1e6d2;
+  --ambar:#d9a441; --erro:#b4381f; --raio:14px;
   --fonte:ui-rounded,"Nunito","Segoe UI",system-ui,-apple-system,sans-serif;
-}
-@media (prefers-color-scheme:dark){
-  :root{--fundo:#101a19;--card:#172423;--texto:#e6f0ee;--suave:#9bb3b0;--linha:#27403d;--verde:#4fb3aa;--verde-esc:#6cc7be;--verde-claro:#1c3a37;--erro:#ff8a70}
 }
 *{box-sizing:border-box}
 body{margin:0;font-family:var(--fonte);background:var(--fundo);color:var(--texto);line-height:1.5}
@@ -53,7 +50,7 @@ label{display:block;font-weight:600;font-size:.9rem;margin-bottom:.8rem}
 input,select,textarea{width:100%;font:inherit;padding:.6rem .75rem;margin-top:.25rem;border:1px solid var(--linha);border-radius:10px;background:var(--fundo);color:var(--texto)}
 input:focus,select:focus{border-color:var(--verde)}
 dialog{border:0;border-radius:var(--raio);padding:1.5rem;width:min(460px,92vw);background:var(--card);color:var(--texto);box-shadow:0 20px 60px #0004}
-dialog::backdrop{background:#0a1a1980}
+dialog::backdrop{background:#2a1d1280}
 .erro{color:var(--erro);font-size:.9rem;min-height:1.2rem;margin:0}
 #toast{position:fixed;bottom:1.2rem;left:50%;transform:translate(-50%,150%);background:var(--texto);color:var(--fundo);padding:.7rem 1.2rem;border-radius:99px;transition:transform .25s;z-index:20}
 #toast.on{transform:translate(-50%,0)}#toast.ruim{background:var(--erro);color:#fff}
@@ -63,3 +60,7 @@ dialog::backdrop{background:#0a1a1980}
 .abas .btn-sec[aria-pressed=true]{background:var(--verde);color:#fff}
 @media(max-width:720px){.duas{grid-template-columns:1fr}.topo{flex-wrap:wrap;gap:.5rem}.usuario span{display:none}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+.avatar{overflow:hidden}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.foto-prev{width:5rem;height:5rem;border-radius:50%;object-fit:cover;display:block;margin:-.4rem 0 .8rem}
+textarea{resize:vertical}

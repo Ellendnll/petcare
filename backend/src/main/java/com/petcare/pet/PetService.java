@@ -33,6 +33,7 @@ public class PetService {
         return petRepository.findById(id).map(pet -> {
             pet.setNome(petAtualizado.getNome());
             pet.setPeso(petAtualizado.getPeso());
+            pet.setFoto(petAtualizado.getFoto());
             pet.setEspecie(petAtualizado.getEspecie());
             pet.setRaca(petAtualizado.getRaca());
             pet.setNascimento(petAtualizado.getNascimento());

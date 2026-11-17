@@ -8,112 +8,62 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class VacinaService {
 
+    private final VacinaRepository vacinaRepository;
     private final PetRepository petRepository;
-    private final VacinacaoRepository vacinacaoRepository;
 
-    @Transactional(readOnly = true)
-    public List<PetVacinaResumoDTO> buscar(Long usuarioId, String nome) {
-        if (usuarioId == null) {
-            throw new RegraNegocioException("Informe o id do usuário");
-        }
-        if (nome == null || nome.isBlank()) {
-            throw new RegraNegocioException("Informe o nome do pet");
-        }
-
-        return petRepository.findByUsuarioIdAndNomeContainingIgnoreCase(usuarioId, nome.trim())
-                .stream()
-                .map(PetVacinaResumoDTO::de)
-                .toList();
+    @Transactional
+    public VacinaResponseDTO criar(VacinaRequestDTO dto) {
+        Vacina vacina = new Vacina();
+        preencher(vacina, dto);
+        return VacinaResponseDTO.de(vacinaRepository.save(vacina));
     }
 
     @Transactional(readOnly = true)
-    public PetVacinaDetalheDTO detalhar(Long petId) {
-        Pet pet = buscarPet(petId);
-        EspecieVacina especie = EspecieVacina.da(pet.getEspecie());
-        return montarDetalhe(pet, especie, vacinacaoRepository.findByPetId(pet.getId()));
+    public VacinaResponseDTO buscarPorId(Long id) {
+        return VacinaResponseDTO.de(buscar(id));
+    }
+
+    @Transactional(readOnly = true)
+    public List<VacinaResponseDTO> listar(Long petId) {
+        List<Vacina> vacinas = petId != null
+                ? vacinaRepository.findByPetIdOrderByDataAplicacaoDesc(petId)
+                : vacinaRepository.findAllByOrderByDataAplicacaoDesc();
+        return vacinas.stream().map(VacinaResponseDTO::de).toList();
     }
 
     @Transactional
-    public PetVacinaDetalheDTO salvar(Long petId, SalvarVacinacaoRequest request) {
-        Pet pet = buscarPet(petId);
-        EspecieVacina especie = EspecieVacina.da(pet.getEspecie());
-        List<VacinaCatalogo.Tipo> catalogo = VacinaCatalogo.porEspecie(especie);
+    public VacinaResponseDTO atualizar(Long id, VacinaRequestDTO dto) {
+        Vacina vacina = buscar(id);
+        preencher(vacina, dto);
+        return VacinaResponseDTO.de(vacina);
+    }
 
-        Set<String> marcadas = normalizarMarcadas(request.aplicadas());
-        Set<String> permitidas = catalogo.stream()
-                .map(VacinaCatalogo.Tipo::codigo)
-                .collect(Collectors.toSet());
+    @Transactional
+    public void excluir(Long id) {
+        vacinaRepository.delete(buscar(id));
+    }
 
-        if (!permitidas.containsAll(marcadas)) {
-            throw new RegraNegocioException("Há vacina que não se aplica à espécie do pet");
+    private void preencher(Vacina vacina, VacinaRequestDTO dto) {
+        if (dto.proximaDose() != null && !dto.proximaDose().isAfter(dto.dataAplicacao())) {
+            throw new RegraNegocioException("A próxima dose deve ser posterior à data de aplicação");
         }
-
-        Map<String, Vacinacao> atuais = vacinacaoRepository.findByPetId(pet.getId()).stream()
-                .collect(Collectors.toMap(Vacinacao::getCodigo, Function.identity()));
-
-        List<Vacinacao> persistidas = catalogo.stream()
-                .map(tipo -> atualizar(pet, atuais.get(tipo.codigo()), tipo.codigo(), marcadas.contains(tipo.codigo())))
-                .toList();
-
-        return montarDetalhe(pet, especie, persistidas);
+        Pet pet = petRepository.findById(dto.petId())
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Animal não encontrado: " + dto.petId()));
+        vacina.setNome(dto.nome().trim());
+        vacina.setDataAplicacao(dto.dataAplicacao());
+        vacina.setProximaDose(dto.proximaDose());
+        vacina.setObservacoes(dto.observacoes());
+        vacina.setPet(pet);
     }
 
-    private Vacinacao atualizar(Pet pet, Vacinacao registro, String codigo, boolean aplicada) {
-        if (registro == null) {
-            registro = new Vacinacao();
-            registro.setPet(pet);
-            registro.setCodigo(codigo);
-        }
-        registro.setAplicada(aplicada);
-        registro.setAtualizadoEm(LocalDate.now());
-        return vacinacaoRepository.save(registro);
-    }
-
-    private Set<String> normalizarMarcadas(List<String> aplicadas) {
-        Set<String> marcadas = new HashSet<>();
-        for (String codigo : aplicadas) {
-            marcadas.add(codigo.trim());
-        }
-        return marcadas;
-    }
-
-    private Pet buscarPet(Long petId) {
-        return petRepository.findById(petId)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Pet não encontrado: " + petId));
-    }
-
-    private PetVacinaDetalheDTO montarDetalhe(Pet pet, EspecieVacina especie, List<Vacinacao> registros) {
-        Map<String, Boolean> aplicadas = registros.stream()
-                .collect(Collectors.toMap(Vacinacao::getCodigo, Vacinacao::isAplicada, (a, b) -> b));
-
-        List<VacinaStatusDTO> vacinas = VacinaCatalogo.porEspecie(especie).stream()
-                .map(tipo -> new VacinaStatusDTO(
-                        tipo.codigo(),
-                        tipo.nome(),
-                        aplicadas.getOrDefault(tipo.codigo(), false)))
-                .toList();
-
-        return new PetVacinaDetalheDTO(
-                pet.getId(),
-                pet.getNome(),
-                pet.getEspecie(),
-                pet.getRaca(),
-                pet.getNascimento(),
-                pet.getUsuarioId(),
-                VacinaCatalogo.observacao(especie),
-                vacinas
-        );
+    private Vacina buscar(Long id) {
+        return vacinaRepository.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Vacina não encontrada: " + id));
     }
 }

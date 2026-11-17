@@ -4,10 +4,24 @@ if (!usuario) location.replace('login.html');
 const $ = s => document.querySelector(s);
 const app = $('#app'), modal = $('#modal');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-// Espécies que possuem protocolo de vacinação no back-end (EspecieVacina)
-const ESPECIES = ['Cachorro', 'Gato', 'Loro', 'Calopsita', 'Hamster'];
+
+const ESPECIES = ['Cachorro', 'Gato', 'Loro', 'Calopsita', 'Hamster', 'Outro'];
 const EMOJI = { cachorro: '🐶', gato: '🐱', loro: '🦜', calopsita: '🐦', hamster: '🐹' };
 const emoji = p => EMOJI[(p.especie || '').toLowerCase()] || '🐾';
+const avatar = p => p.foto ? `<img src="${p.foto}" alt="Foto de ${esc(p.nome)}">` : emoji(p);
+const hoje = () => new Date().toLocaleDateString('sv-SE');
+const VACINAS_COMUNS = ['V10', 'V8', 'V4 (felina)', 'Antirrábica', 'Giárdia', 'Gripe canina', 'FeLV', 'Leishmaniose'];
+const reduzir = (file, max = 400) => new Promise((ok, no) => {
+  const img = new Image(), url = URL.createObjectURL(file);
+  img.onload = () => {
+    const e = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+    c.width = img.width * e; c.height = img.height * e;
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', .8));
+  };
+  img.onerror = () => no(new Error('Imagem inválida'));
+  img.src = url;
+});
 const fmtData = d => d ? new Date(d + 'T00:00').toLocaleDateString('pt-BR') : '—';
 const fmtHora = d => new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const partes = d => { const x = new Date(d); return `<div class="data">${x.getDate()}<small>${x.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}</small></div>`; };
@@ -45,6 +59,10 @@ async function minhasConsultas(pets) {
   const ids = new Set(pets.map(p => p.id));
   return (await api('/api/consultas')).filter(c => ids.has(c.petId));
 }
+async function minhasVacinas(pets) {
+  const ids = new Set(pets.map(p => p.id));
+  return (await api('/api/vacinas')).filter(v => ids.has(v.petId));
+}
 const opcoesPets = (pets, sel) => pets.map(p => `<option value="${p.id}" ${p.id == sel ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
 const seletor = (pets, sel, rota) => `<label style="max-width:280px">Animal
   <select onchange="location.hash='#/${rota}?pet='+this.value">${opcoesPets(pets, sel)}</select></label>`;
@@ -53,21 +71,17 @@ const semPets = () => app.innerHTML = vazio('Cadastre um animal primeiro. <br><b
 // ---------- telas ----------
 async function inicio() {
   const pets = await meusPets();
-  const cons = await minhasConsultas(pets);
+  const [cons, vac] = await Promise.all([minhasConsultas(pets), minhasVacinas(pets)]);
   const prox = cons.filter(c => new Date(c.dataHora) >= new Date());
-  const vac = await Promise.all(pets.map(p => api(`/api/vacinas/pets/${p.id}`).catch(() => null)));
+  const doses = vac.filter(v => v.proximaDose).sort((a, b) => a.proximaDose.localeCompare(b.proximaDose)).slice(0, 5);
   app.innerHTML = `<h1>Olá, ${esc(usuario.nome.split(' ')[0])}!</h1>
     <div class="numeros"><div class="num"><b>${pets.length}</b>animais cadastrados</div>
     <div class="num"><b>${prox.length}</b>consultas agendadas</div></div>
     <div class="duas">
       <section class="painel"><h2>Próximas consultas</h2>${prox.slice(0, 5).map(c => `<div class="linha">${partes(c.dataHora)}
         <div><b>${esc(c.petNome)}</b> · ${esc(c.motivo)}<div class="suave">${esc(c.clinica)} às ${fmtHora(c.dataHora)}</div></div></div>`).join('') || vazio('Nenhuma consulta agendada.')}</section>
-      <section class="painel"><h2>Vacinas</h2>${pets.map((p, i) => {
-        const v = vac[i]?.vacinas || [], ok = v.filter(x => x.aplicada).length;
-        return `<div class="linha"><div class="avatar">${emoji(p)}</div><div><b>${esc(p.nome)}</b>
-          <div class="suave">${v.length ? `${ok} de ${v.length} aplicadas` : 'Sem vacinas de rotina'}</div>
-          <div class="barra"><i style="width:${v.length ? ok / v.length * 100 : 0}%"></i></div></div></div>`;
-      }).join('') || vazio('Nenhum animal cadastrado.')}</section>
+      <section class="painel"><h2>Próximas doses</h2>${doses.map(v => `<div class="linha">${partes(v.proximaDose + 'T00:00')}
+        <div><b>${esc(v.nome)}</b> · ${esc(v.petNome)}</div>${v.proximaDose < hoje() ? '<span class="selo alerta">Atrasada</span>' : ''}</div>`).join('') || vazio('Nenhuma dose pendente.')}</section>
     </div>`;
 }
 
@@ -75,7 +89,7 @@ let petsCache = [];
 async function animais() {
   petsCache = await meusPets();
   app.innerHTML = `<div class="titulo"><h1>Meus animais</h1><button class="btn" data-acao="novo-pet">Novo animal</button></div>
-    <div class="grade">${petsCache.map(p => `<article class="card"><div class="pet-topo"><div class="avatar">${emoji(p)}</div>
+    <div class="grade">${petsCache.map(p => `<article class="card"><div class="pet-topo"><div class="avatar">${avatar(p)}</div>
       <div><h3>${esc(p.nome)}</h3><span class="suave">${esc(p.especie || '')}${p.raca ? ' · ' + esc(p.raca) : ''}</span></div></div>
       <div class="suave">${p.nascimento ? `Nasceu em ${fmtData(p.nascimento)} (${idade(p.nascimento)})<br>` : ''}${p.peso ? `Peso: ${p.peso} kg` : ''}</div>
       <div class="acoes"><a class="btn-sec" href="#/historico?pet=${p.id}">Histórico</a>
@@ -85,30 +99,35 @@ async function animais() {
 }
 
 function formPet(p = {}) {
+  let foto = p.foto || null;
   abrirForm(p.id ? 'Editar animal' : 'Novo animal', `
+    <label>Foto<input type="file" accept="image/*" id="foto-in"></label>
+    <img id="foto-prev" class="foto-prev" alt="Prévia da foto" ${foto ? `src="${foto}"` : 'hidden'}>
     <label>Nome<input name="nome" required value="${esc(p.nome)}"></label>
     <label>Espécie<select name="especie" required>${ESPECIES.map(e => `<option ${e === p.especie ? 'selected' : ''}>${e}</option>`).join('')}</select></label>
     <label>Raça<input name="raca" value="${esc(p.raca)}"></label>
-    <label>Data de nascimento<input name="nascimento" type="date" max="${new Date().toISOString().slice(0, 10)}" value="${p.nascimento || ''}"></label>
+    <label>Data de nascimento<input name="nascimento" type="date" max="${hoje()}" value="${p.nascimento || ''}"></label>
     <label>Peso (kg)<input name="peso" type="number" step="0.01" min="0" value="${p.peso ?? ''}"></label>`,
     async v => api(p.id ? `/api/pets/${p.id}` : '/api/pets', {
       method: p.id ? 'PUT' : 'POST',
-      body: { ...v, nascimento: v.nascimento || null, peso: v.peso ? Number(v.peso) : null, usuarioId: usuario.id }
+      body: { ...v, foto, nascimento: v.nascimento || null, peso: v.peso ? Number(v.peso) : null, usuarioId: usuario.id }
     }));
+  $('#foto-in').onchange = async e => {
+    try { foto = await reduzir(e.target.files[0]); $('#foto-prev').src = foto; $('#foto-prev').hidden = false; }
+    catch (err) { toast(err.message, true); }
+  };
 }
 
-async function vacinas(q) {
-  const pets = await meusPets();
+let vacCache = [];
+async function vacinas() {
+  const pets = petsCache = await meusPets();
   if (!pets.length) return semPets();
-  const id = q.get('pet') || pets[0].id;
-  app.innerHTML = `<h1>Vacinas</h1>${seletor(pets, id, 'vacinas')}<section class="painel" id="vac">Carregando…</section>`;
-  try {
-    const d = await api(`/api/vacinas/pets/${id}`);
-    $('#vac').innerHTML = `<h2>Carteira de vacinação de ${esc(d.nome)}</h2>
-      ${d.observacao ? `<p class="suave">${esc(d.observacao)}</p>` : ''}
-      ${d.vacinas.map(v => `<label class="check"><input type="checkbox" value="${v.codigo}" ${v.aplicada ? 'checked' : ''}> ${esc(v.nome)}</label>`).join('')}
-      ${d.vacinas.length ? `<div class="acoes"><button class="btn" data-acao="salvar-vacinas" data-id="${id}">Salvar vacinas</button></div>` : ''}`;
-  } catch (e) { $('#vac').innerHTML = vazio(esc(e.message)); }
+  vacCache = await minhasVacinas(pets);
+  app.innerHTML = `<div class="titulo"><h1>Vacinas</h1><button class="btn" data-acao="nova-vacina">Registrar vacina</button></div>
+    <section class="painel">${vacCache.map(v => `<div class="linha">${partes(v.dataAplicacao + 'T00:00')}
+      <div><b>${esc(v.nome)}</b> · ${esc(v.petNome)}<div class="suave">${v.proximaDose ? 'Próxima dose: ' + fmtData(v.proximaDose) : 'Sem próxima dose'}${v.observacoes ? ' · ' + esc(v.observacoes) : ''}</div></div>
+      <button class="btn-sec" data-acao="editar-vacina" data-id="${v.id}">Editar</button>
+      <button class="btn-sec perigo" data-acao="excluir-vacina" data-id="${v.id}">Excluir</button></div>`).join('') || vazio('Nenhuma vacina registrada.')}</section>`;
 }
 
 let consCache = [];
@@ -126,6 +145,21 @@ async function consultas() {
     ${passadas.length ? `<section class="painel" style="margin-top:1rem"><h2>Anteriores</h2>${lista(passadas)}</section>` : ''}`;
 }
 
+function formVacina(v = {}) {
+  if (!petsCache.length) return toast('Cadastre um animal antes.', true);
+  abrirForm(v.id ? 'Editar vacina' : 'Registrar vacina', `
+    <label>Animal<select name="petId">${opcoesPets(petsCache, v.petId)}</select></label>
+    <label>Vacina<input name="nome" list="lista-vacinas" required value="${esc(v.nome)}"></label>
+    <datalist id="lista-vacinas">${VACINAS_COMUNS.map(n => `<option value="${n}">`).join('')}</datalist>
+    <label>Data de aplicação<input name="dataAplicacao" type="date" required max="${hoje()}" value="${v.dataAplicacao || ''}"></label>
+    <label>Próxima dose<input name="proximaDose" type="date" value="${v.proximaDose || ''}"></label>
+    <label>Observações<textarea name="observacoes" rows="2" maxlength="500">${esc(v.observacoes)}</textarea></label>`,
+    async f => api(v.id ? `/api/vacinas/${v.id}` : '/api/vacinas', {
+      method: v.id ? 'PUT' : 'POST',
+      body: { ...f, petId: Number(f.petId), proximaDose: f.proximaDose || null, observacoes: f.observacoes || null }
+    }));
+}
+
 function formConsulta(c = {}) {
   if (!petsCache.length) return toast('Cadastre um animal antes de agendar.', true);
   abrirForm(c.id ? 'Editar consulta' : 'Agendar consulta', `
@@ -140,17 +174,14 @@ async function historico(q) {
   const pets = await meusPets();
   if (!pets.length) return semPets();
   const id = q.get('pet') || pets[0].id;
-  const [cons, vac] = await Promise.all([api(`/api/consultas?petId=${id}`), api(`/api/vacinas/pets/${id}`).catch(() => null)]);
-  const agora = new Date(), feitas = cons.filter(c => new Date(c.dataHora) < agora).reverse(), futuras = cons.filter(c => new Date(c.dataHora) >= agora);
-  const linhas = (arr, selo) => arr.map(c => `<div class="linha">${partes(c.dataHora)}<div><b>${esc(c.motivo)}</b>
-    <div class="suave">${esc(c.clinica)} · ${fmtData(c.dataHora.slice(0, 10))}</div></div><span class="selo ${selo ? 'alerta' : ''}">${selo ? 'Agendada' : 'Realizada'}</span></div>`).join('');
-  const aplicadas = vac?.vacinas.filter(v => v.aplicada) || [], pendentes = vac?.vacinas.filter(v => !v.aplicada) || [];
+  const h = await api(`/api/pets/${id}/historico`), agora = new Date();
   app.innerHTML = `<h1>Histórico de cuidados</h1>${seletor(pets, id, 'historico')}
-    <div class="duas"><section class="painel"><h2>Vacinas</h2>
-      ${aplicadas.map(v => `<div class="linha"><div>${esc(v.nome)}</div><span class="selo">Aplicada</span></div>`).join('')}
-      ${pendentes.map(v => `<div class="linha"><div>${esc(v.nome)}</div><span class="selo alerta">Pendente</span></div>`).join('')}
-      ${vac?.vacinas.length ? '' : vazio(esc(vac?.observacao || 'Sem vacinas para exibir.'))}</section>
-    <section class="painel"><h2>Consultas</h2>${linhas(futuras, true)}${linhas(feitas, false)}${cons.length ? '' : vazio('Nenhuma consulta registrada.')}</section></div>`;
+    <section class="painel">${h.eventos.map(e => {
+      const futuro = new Date(e.data) > agora;
+      return `<div class="linha">${partes(e.data)}<div><b>${esc(e.titulo)}</b>
+        <div class="suave">${e.tipo === 'VACINA' ? 'Vacina' : 'Consulta'} · ${fmtData(e.data.slice(0, 10))}${e.detalhe ? ' · ' + esc(e.detalhe) : ''}</div></div>
+        <span class="selo ${futuro ? 'alerta' : ''}">${futuro ? 'Agendada' : e.tipo === 'VACINA' ? 'Aplicada' : 'Realizada'}</span></div>`;
+    }).join('') || vazio('Nenhum cuidado registrado ainda.')}</section>`;
 }
 
 // ---------- ações ----------
@@ -167,10 +198,12 @@ const acoes = {
     if (!confirm('Cancelar esta consulta?')) return;
     await api(`/api/consultas/${id}`, { method: 'DELETE' }); toast('Consulta cancelada.'); navegar();
   },
-  'salvar-vacinas': async id => {
-    const aplicadas = [...document.querySelectorAll('#vac input:checked')].map(i => i.value);
-    await api(`/api/vacinas/pets/${id}`, { method: 'PUT', body: { aplicadas } }); toast('Vacinas salvas!');
-  }
+  'nova-vacina': () => formVacina(),
+  'editar-vacina': id => formVacina(vacCache.find(v => v.id == id)),
+  'excluir-vacina': async id => {
+    if (!confirm('Excluir este registro de vacina?')) return;
+    await api(`/api/vacinas/${id}`, { method: 'DELETE' }); toast('Vacina excluída.'); navegar();
+},
 };
 app.addEventListener('click', async e => {
   const b = e.target.closest('[data-acao]');

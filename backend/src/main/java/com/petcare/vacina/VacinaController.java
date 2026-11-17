@@ -2,14 +2,10 @@ package com.petcare.vacina;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.util.List;
 
 @RestController
@@ -19,19 +15,30 @@ public class VacinaController {
 
     private final VacinaService service;
 
-    @GetMapping("/pets")
-    public List<PetVacinaResumoDTO> buscar(@RequestParam Long usuarioId, @RequestParam String nome) {
-        return service.buscar(usuarioId, nome);
+    @PostMapping
+    public ResponseEntity<VacinaResponseDTO> criar(@Valid @RequestBody VacinaRequestDTO dto) {
+        VacinaResponseDTO criada = service.criar(dto);
+        return ResponseEntity.created(URI.create("/api/vacinas/" + criada.id())).body(criada);
     }
 
-    @GetMapping("/pets/{petId}")
-    public PetVacinaDetalheDTO detalhar(@PathVariable Long petId) {
-        return service.detalhar(petId);
+    @GetMapping
+    public List<VacinaResponseDTO> listar(@RequestParam(required = false) Long petId) {
+        return service.listar(petId);
     }
 
-    @PutMapping("/pets/{petId}")
-    public PetVacinaDetalheDTO salvar(@PathVariable Long petId,
-                                      @Valid @RequestBody SalvarVacinacaoRequest request) {
-        return service.salvar(petId, request);
+    @GetMapping("/{id}")
+    public VacinaResponseDTO buscar(@PathVariable Long id) {
+        return service.buscarPorId(id);
+    }
+
+    @PutMapping("/{id}")
+    public VacinaResponseDTO atualizar(@PathVariable Long id, @Valid @RequestBody VacinaRequestDTO dto) {
+        return service.atualizar(id, dto);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> excluir(@PathVariable Long id) {
+        service.excluir(id);
+        return ResponseEntity.noContent().build();
     }
 }

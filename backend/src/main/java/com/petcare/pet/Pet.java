@@ -21,6 +21,9 @@ public class Pet {
     @NotBlank(message = "O nome do pet é obrigatório")
     private String nome;
 
+    @Column(length = 1_000_000)
+    private String foto;
+
     private Double peso;
 
     private String especie; 
