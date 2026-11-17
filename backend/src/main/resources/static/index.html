@@ -7,18 +7,24 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<header class="topo">
-  <a class="marca" href="#/">🐾 Pet Care</a>
-  <nav id="menu">
-    <a href="#/" data-r="">Início</a>
-    <a href="#/animais" data-r="animais">Meus animais</a>
-    <a href="#/vacinas" data-r="vacinas">Vacinas</a>
-    <a href="#/consultas" data-r="consultas">Consultas</a>
-    <a href="#/historico" data-r="historico">Histórico</a>
-  </nav>
-  <div class="usuario"><span id="nome-usuario"></span><button id="sair" class="btn-texto">Sair</button></div>
-</header>
-<main id="app"></main>
+<div class="layout">
+  <aside class="lateral">
+    <a class="marca" href="#/">🐾 Pet Care</a>
+    <nav id="menu">
+      <a href="#/" data-r=""><i>🏠</i>Início</a>
+      <a href="#/animais" data-r="animais"><i>🐶</i>Meus animais</a>
+      <a href="#/vacinas" data-r="vacinas"><i>💉</i>Vacinas</a>
+      <a href="#/consultas" data-r="consultas"><i>📅</i>Consultas</a>
+      <a href="#/historico" data-r="historico"><i>📋</i>Histórico</a>
+    </nav>
+    <div class="usuario">
+      <div class="avatar-u" id="inicial"></div>
+      <b id="nome-usuario"></b>
+      <button id="sair" class="btn-texto">Sair</button>
+    </div>
+  </aside>
+  <main id="app"></main>
+</div>
 <div id="toast" role="status"></div>
 <dialog id="modal"></dialog>
 <script src="js/api.js"></script>

@@ -19,4 +19,6 @@ public interface ConsultaRepository extends JpaRepository<Consulta, Long> {
     boolean existsByPetIdAndDataHora(Long petId, LocalDateTime dataHora);
 
     boolean existsByPetIdAndDataHoraAndIdNot(Long petId, LocalDateTime dataHora, Long id);
+
+    void deleteByPetId(Long petId);
 }

@@ -9,4 +9,6 @@ public interface VacinaRepository extends JpaRepository<Vacina, Long> {
     List<Vacina> findAllByOrderByDataAplicacaoDesc();
 
     List<Vacina> findByPetIdOrderByDataAplicacaoDesc(Long petId);
+
+    void deleteByPetId(Long petId);
 }
