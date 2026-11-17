@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Pet Care</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topo">
+  <a class="marca" href="#/">🐾 Pet Care</a>
+  <nav id="menu">
+    <a href="#/" data-r="">Início</a>
+    <a href="#/animais" data-r="animais">Meus animais</a>
+    <a href="#/vacinas" data-r="vacinas">Vacinas</a>
+    <a href="#/consultas" data-r="consultas">Consultas</a>
+    <a href="#/historico" data-r="historico">Histórico</a>
+  </nav>
+  <div class="usuario"><span id="nome-usuario"></span><button id="sair" class="btn-texto">Sair</button></div>
+</header>
+<main id="app"></main>
+<div id="toast" role="status"></div>
+<dialog id="modal"></dialog>
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

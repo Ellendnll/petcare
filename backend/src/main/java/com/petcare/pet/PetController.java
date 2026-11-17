@@ -19,8 +19,8 @@ public class PetController {
     }
 
     @GetMapping
-    public List<Pet> listar() {
-        return petService.listarTodos();
+    public List<Pet> listar(@RequestParam(required = false) Long usuarioId) {
+        return usuarioId != null ? petService.listarPorUsuario(usuarioId) : petService.listarTodos();
     }
 
     @GetMapping("/{id}")

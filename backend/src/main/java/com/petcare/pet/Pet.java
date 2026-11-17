@@ -21,6 +21,8 @@ public class Pet {
     @NotBlank(message = "O nome do pet é obrigatório")
     private String nome;
 
+    private Double peso;
+
     private String especie; 
     
     private String raca;

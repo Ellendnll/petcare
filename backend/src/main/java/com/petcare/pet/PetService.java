@@ -17,6 +17,10 @@ public class PetService {
         return petRepository.findAll();
     }
 
+    public List<Pet> listarPorUsuario(Long usuarioId) { 
+        return petRepository.findByUsuarioId(usuarioId); 
+    }
+
     public Optional<Pet> buscarPorId(Long id) {
         return petRepository.findById(id);
     }
@@ -28,6 +32,7 @@ public class PetService {
     public Pet atualizar(Long id, Pet petAtualizado) {
         return petRepository.findById(id).map(pet -> {
             pet.setNome(petAtualizado.getNome());
+            pet.setPeso(petAtualizado.getPeso());
             pet.setEspecie(petAtualizado.getEspecie());
             pet.setRaca(petAtualizado.getRaca());
             pet.setNascimento(petAtualizado.getNascimento());
